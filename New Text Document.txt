@@ -1,0 +1,47 @@
+import sqlite3
+
+def veritabanini_guncelle():
+    conn = sqlite3.connect('spor_salonu.db')
+    cursor = conn.cursor()
+
+    # 1. MEVCUT HAREKETİ GÜNCELLEME (UPDATE)
+    # "Push Down" ismini "Rope Pushdown" olarak değiştiriyoruz.
+    cursor.execute('''
+        UPDATE Egzersizler 
+        SET hareket_adi = 'Rope Pushdown' 
+        WHERE hareket_adi = 'Push Down'
+    ''')
+    print("Mevcut 'Push Down' hareketi 'Rope Pushdown' olarak güncellendi.")
+
+    # 2. YENİ HAREKETLERİ EKLEME (INSERT)
+    # Hareket Adı, Kas Grubu (Algoritmaya uygun), Açıklama
+    yeni_egzersizler = [
+        # Sırt
+        ('Seated Row Machine', 'Sırt', 'Sırt kaslarını kalınlaştıran oturarak çekiş makinesi.'),
+        ('Seated Cable Row', 'Sırt', 'Kablolu istasyonda oturarak sırta çekiş hareketi.'),
+        # Bacak (Ön Bacak olarak kaydediyoruz ki algoritma doğru saysın)
+        ('Hack Squat', 'Ön Bacak', 'Makine yardımıyla yapılan, ön bacak odaklı squat varyasyonu.'),
+        ('Squat', 'Ön Bacak', 'Temel serbest ağırlık bacak ve kalça egzersizi.'),
+        # Biceps
+        ('Seated Incline Dumbell Biceps Curl', 'Biceps', 'Eğimli sehpada oturarak yapılan, biceps uzun başını hedefleyen hareket.'),
+        # Triceps
+        ('Skullcrusher', 'Triceps', 'Yatarak alına doğru ağırlık indirme (arka kol) hareketi.'),
+        ('Close-Grip Bench Press', 'Triceps', 'Dar tutuşla yapılan, triceps (arka kol) odaklı itme hareketi.'),
+        ('Overhead Cable Extensions', 'Triceps', 'Kablo ile baş üstünden ileri itiş yapılan arka kol hareketi.')
+    ]
+
+    eklenen_sayisi = 0
+    for egzersiz in yeni_egzersizler:
+        # Hareketi iki kere eklememek için önce kontrol ediyoruz
+        cursor.execute("SELECT COUNT(*) FROM Egzersizler WHERE hareket_adi = ?", (egzersiz[0],))
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("INSERT INTO Egzersizler (hareket_adi, kas_grubu, aciklama) VALUES (?, ?, ?)", egzersiz)
+            eklenen_sayisi += 1
+
+    conn.commit()
+    conn.close()
+    
+    print(f"İşlem tamamlandı! Veritabanına {eklenen_sayisi} yeni hareket başarıyla eklendi.")
+
+if __name__ == "__main__":
+    veritabanini_guncelle()

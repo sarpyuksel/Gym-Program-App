@@ -1,0 +1,20 @@
+1- Off day seçmek için table ile yapıldıysa direkt haftalık programdan, günün üstüne gelip clicked ile seçilip o sütunu komple kırmızı renge boyayıp o güne hareket eklenmesini engellesin.
+2- kullanıcı verilerini tabloda göstersin.
+3-Çalışma programını kişi PDF olarak çıktısını alabilsin.
+4-Programdan veri silme tuşu ekle.
+5-Biraz tasarımsal olarak geliştir.
+
+
+___________________________________________________________________________________________________
+
+*Program ekleme kısmı: tabloda boş yere tıklayınca o boşluğa, egzersiz arama ekle kısmına yönlendirsin. Önceden gün seçtiğimiz için altta gün seçme kısmı bulunmasın.
+
+*Hedef Belirleme Kısmı olsun. Kullanıcıya amaçları sorulsun. Bu kısımdan sonra ad soyad boy kilo, hedef kilo vs. sorulsun. Kilo alma kilo verme. Farklı tip egzersizler olsun. Fitness, calistenics, crossfit, pilates vb.
+
+
+___________________________________________________________________________________________________
+
+1-Ptlik uyg yap. (vücut ölçülerini girip ihtiyacın olan supplementleri, söyleyen) (ptlik hareket yoruculuğuna göre dengeyi sağlayan, tekrar sayısı set sayısı belirleyen.) 2* (animasyonlu hareketleri gösteren ve kalori dengesini ihtiyacına göre öneren uygulama)
+
+
+1- Kas analizi kısmında bir bölgeyi kaç harekette çalıştırdığımızı göstersin mesela 2 den fazla aynı kas grubu için çalıştığımızda uyarı versin ve cursor üstüne geldiğinde  hangi hareketler sonucu bu fazlalık oluşmuş onlar gözüksün. Hiç çalıştırmadığında da şu anki gibi Eksik çalışıyorsun diye uyarı versin. 
