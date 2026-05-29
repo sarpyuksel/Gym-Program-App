@@ -1,0 +1,7 @@
+# Özel Notlar ve Çıktılar
+*.txt
+*.pdf
+
+# Python Sistem Dosyaları (Gereksiz önbellekler)
+__pycache__/
+*.pyc
