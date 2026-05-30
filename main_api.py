@@ -106,7 +106,6 @@ class SporSalonuApp(QMainWindow):
         self.egzersizleri_api_den_cek(varsayilan_kelime="press")
 
     def stil_sablonlarini_hazirla(self):
-        # QMessageBox, QDialog ve Tablo Seçimleri için özel kontrast ayarları eklendi!
         self.dark_qss = """
             QMainWindow, QDialog, QMessageBox { background-color: #14151f; color: #ffffff; }
             QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #ffffff; }
@@ -349,7 +348,7 @@ class SporSalonuApp(QMainWindow):
                 QMessageBox.warning(self, "Uyarı", "Lütfen aramak için bir kelime girin.")
                 return
 
-        API_KEY = "hUWeNx7bZqhzkJkNnhE7PVYZoon3YZDVLnL7OQoe"
+        API_KEY = "9Yezy8z9BZZGRQzW6Sh13Q5xYLNe7PR8ACO2TzeE"
         api_url = f"https://api.api-ninjas.com/v1/exercises?name={arama_metni}"
 
         try:
