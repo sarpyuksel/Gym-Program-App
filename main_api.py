@@ -608,8 +608,11 @@ class SporSalonuApp(QMainWindow):
     def pdf_olarak_indir(self):
         dosya_yolu, _ = QFileDialog.getSaveFileName(self, "PDF Olarak Kaydet", "Haftalik_Fitness_Programi.pdf", "PDF Dosyaları (*.pdf)")
         if dosya_yolu:
-            html = f"<html><head><meta charset='utf-8'></head><body><h1 style='text-align:center; color:#2C3E50;'>Haftalık Fitness Programı</h1><h3 style='text-align:center; color:#7F8C8D;'>{self.lbl_bmi.text()}</h3><hr><table border='1' width='100%' cellspacing='0' cellpadding='10' style='border-collapse: collapse; text-align: center; font-family: Arial; font-size: 11px;'><tr style='background-color: #000BE3; color: white;'>"
-            for gun in self.gunler: html += f"<th>{gun}</th>"
+            # HTML font boyutları büyütüldü
+            html = f"<html><head><meta charset='utf-8'></head><body><h1 style='text-align:center; color:#2C3E50;'>Haftalık Fitness Programı</h1><h3 style='text-align:center; color:#7F8C8D;'>{self.lbl_bmi.text()}</h3><hr><table border='1' width='100%' cellspacing='0' cellpadding='10' style='border-collapse: collapse; text-align: center; font-family: Arial; font-size: 14px;'><tr style='background-color: #000BE3; color: white;'>"
+            
+            for gun in self.gunler: 
+                html += f"<th style='padding: 10px; font-size: 16px;'>{gun}</th>"
             html += "</tr>"
             
             for satir in range(self.tablo_takvim.rowCount()):
@@ -620,20 +623,29 @@ class SporSalonuApp(QMainWindow):
                     if item and item.text():
                         bos_satir = False
                         metin = item.text().replace('\n', '<br>')
-                        if "OFF DAY" in metin: satir_html += f"<td style='background-color: #FFCCCC; font-weight: bold; color: black;'>{metin}</td>"
-                        else: satir_html += f"<td style='color: black;'>{metin}</td>"
-                    else: satir_html += "<td></td>"
+                        if "OFF DAY" in metin: 
+                            satir_html += f"<td style='background-color: #FFCCCC; font-weight: bold; color: black; font-size: 13px; padding: 8px;'>{metin}</td>"
+                        else: 
+                            satir_html += f"<td style='color: black; font-size: 13px; padding: 8px;'>{metin}</td>"
+                    else: 
+                        satir_html += "<td></td>"
                 satir_html += "</tr>"
-                if not bos_satir: html += satir_html
+                
+                if not bos_satir: 
+                    html += satir_html
                     
             html += "</table></body></html>"
+            
             belge = QTextDocument()
             belge.setHtml(html)
-            yazici = QPrinter(QPrinter.HighResolution)
+            
+            # KRİTİK DEĞİŞİKLİK: HighResolution yerine ScreenResolution kullanıldı
+            yazici = QPrinter(QPrinter.ScreenResolution)
             yazici.setOutputFormat(QPrinter.PdfFormat)
             yazici.setOutputFileName(dosya_yolu)
             yazici.setOrientation(QPrinter.Landscape)
             belge.print_(yazici)
+            
             QMessageBox.information(self, "Başarılı", f"Programınız başarıyla kaydedildi!")
 
     def off_gun_belirle(self, sutun_indeksi):
