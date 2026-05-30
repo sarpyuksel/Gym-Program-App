@@ -33,6 +33,7 @@ class SporSalonuApp(QMainWindow):
         ]
 
         self.veritabani_kur()
+        self.off_gunleri_yukle() # YENİ: Açılışta DB'den Off günleri çek
 
         merkez_widget = QWidget()
         self.setCentralWidget(merkez_widget)
@@ -96,8 +97,13 @@ class SporSalonuApp(QMainWindow):
 
         self.btn_profil.clicked.connect(lambda: self.ekranlar.setCurrentIndex(0))
         self.btn_havuz.clicked.connect(lambda: self.ekranlar.setCurrentIndex(1))
+        
+        self.btn_takvim.clicked.connect(lambda: self.ekranlar.setCurrentIndex(2))
         self.btn_takvim.clicked.connect(self.takvime_gec) 
+        
+        self.btn_analiz.clicked.connect(lambda: self.ekranlar.setCurrentIndex(3))
         self.btn_analiz.clicked.connect(self.analiz_yap) 
+        
         self.btn_grafik.clicked.connect(lambda: self.ekranlar.setCurrentIndex(4))
         self.btn_grafik.clicked.connect(self.grafik_guncelle)
 
@@ -109,13 +115,13 @@ class SporSalonuApp(QMainWindow):
             self.setStyleSheet(self.light_qss)
 
         self.profil_verilerini_yukle() 
+        self.takvimi_guncelle()
 
     def veritabani_kur(self):
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
-        cursor.execute("DROP TABLE IF EXISTS Egzersizler")
-        cursor.execute("DROP TABLE IF EXISTS Programlar")
         
+        # Diğer tabloları koruyarak sadece eksik olanları oluştururuz
         cursor.execute('''CREATE TABLE IF NOT EXISTS Kullanicilar 
                           (kullanici_id INTEGER PRIMARY KEY, kullanici_adi TEXT, sifre TEXT, boy REAL, kilo REAL)''')
         
@@ -134,8 +140,21 @@ class SporSalonuApp(QMainWindow):
                            set_sayisi INTEGER, 
                            tekrar_sayisi INTEGER)''')
                            
+        # YENİ TABLO: Kalıcı Off Day Hafızası
+        cursor.execute('''CREATE TABLE IF NOT EXISTS OffGunler 
+                          (kullanici_id INTEGER, gun TEXT, UNIQUE(kullanici_id, gun))''')
+                           
         cursor.execute("INSERT OR IGNORE INTO Kullanicilar (kullanici_id, kullanici_adi, sifre) VALUES (1, 'Sarp Yüksel', 'password')")
         conn.commit()
+        conn.close()
+
+    def off_gunleri_yukle(self):
+        """Veritabanından kalıcı dinlenme günlerini çeker."""
+        conn = sqlite3.connect('spor_salonu.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT gun FROM OffGunler WHERE kullanici_id = ?", (self.aktif_kullanici_id,))
+        gunler = cursor.fetchall()
+        self.off_gunler = {g[0] for g in gunler}
         conn.close()
 
     def stil_sablonlarini_hazirla(self):
@@ -200,6 +219,7 @@ class SporSalonuApp(QMainWindow):
         else:
             self.btn_tema.setText("🌙")
             self.setStyleSheet(self.light_qss)
+        
         self.takvimi_guncelle()
         if self.ekranlar.currentIndex() == 4:
             self.grafik_guncelle()
@@ -210,19 +230,24 @@ class SporSalonuApp(QMainWindow):
         baslik = QLabel("Profil Bilgileriniz")
         baslik.setObjectName("Baslik")
         baslik.setAlignment(Qt.AlignCenter)
+        
         self.input_ad_soyad = QLineEdit()
         self.input_ad_soyad.setText("Sarp Yüksel")
         self.input_ad_soyad.setStyleSheet("font-size: 14px; margin-left: 200px; margin-right: 200px; margin-bottom: 10px;")
+        
         self.input_boy = QLineEdit()
         self.input_boy.setPlaceholderText("Boyunuz (Örn: 180 cm)")
         self.input_boy.setStyleSheet("font-size: 14px; margin-left: 200px; margin-right: 200px; margin-bottom: 10px;")
+        
         self.input_kilo = QLineEdit()
         self.input_kilo.setPlaceholderText("Kilonuz (Örn: 75 kg)")
         self.input_kilo.setStyleSheet("font-size: 14px; margin-left: 200px; margin-right: 200px; margin-bottom: 20px;")
+        
         btn_kaydet = QPushButton("Kaydet ve Programa Başla")
         btn_kaydet.setCursor(Qt.PointingHandCursor)
         btn_kaydet.setStyleSheet("background-color: #4CAF50; color: white; padding: 10px; font-size: 16px; font-weight: bold; margin-left: 250px; margin-right: 250px; border:none;")
         btn_kaydet.clicked.connect(self.profil_kaydet)
+        
         layout.addStretch()
         layout.addWidget(baslik)
         layout.addWidget(self.input_ad_soyad)
@@ -238,13 +263,16 @@ class SporSalonuApp(QMainWindow):
             if not ad: raise Exception("Ad Soyad boş bırakılamaz!")
             boy = float(self.input_boy.text().replace(',', '.'))
             kilo = float(self.input_kilo.text().replace(',', '.'))
+            
             conn = sqlite3.connect('spor_salonu.db')
             cursor = conn.cursor()
             cursor.execute("UPDATE Kullanicilar SET kullanici_adi = ?, boy = ?, kilo = ? WHERE kullanici_id = ?", (ad, boy, kilo, self.aktif_kullanici_id))
             conn.commit()
             conn.close()
+            
             self.bmi_guncelle(boy, kilo)
             QMessageBox.information(self, "Başarılı", "Bilgileriniz kaydedildi!")
+            
             self.ekranlar.setCurrentIndex(1) 
             self.btn_havuz.setChecked(True)
         except ValueError:
@@ -258,6 +286,7 @@ class SporSalonuApp(QMainWindow):
         cursor.execute("SELECT kullanici_adi, boy, kilo FROM Kullanicilar WHERE kullanici_id = ?", (self.aktif_kullanici_id,))
         sonuc = cursor.fetchone()
         conn.close()
+        
         if sonuc:
             if sonuc[0]: self.input_ad_soyad.setText(sonuc[0])
             if sonuc[1] and sonuc[2]:
@@ -272,7 +301,7 @@ class SporSalonuApp(QMainWindow):
         metin = f"👤 {self.input_ad_soyad.text()}  |  📏 {boy_cm} cm  |  ⚖️ {kilo} kg  |  🔥 BMI: {bmi:.1f} ({durum})"
         self.lbl_bmi.setText(metin)
 
-    # --- EKRAN 2: EGZERSİZ KÜTÜPHANESİ VE MANUEL EKLEME ---
+    # --- EKRAN 2: EGZERSİZ KÜTÜPHANESİ ---
     def egzersiz_havuzu_ekrani_olustur(self):
         sayfa = QWidget()
         layout = QVBoxLayout(sayfa)
@@ -284,7 +313,7 @@ class SporSalonuApp(QMainWindow):
         # 1. BÖLÜM: API ARAMA
         arama_layout = QHBoxLayout()
         self.input_arama = QLineEdit()
-        self.input_arama.setPlaceholderText("İngilizce terimlerle aratın (Örn: dumbbell, row)...")
+        self.input_arama.setPlaceholderText("İngilizce terimlerle aratın (Örn: press, row)...")
         self.input_arama.setStyleSheet("padding: 8px; font-size: 14px;")
         self.input_arama.returnPressed.connect(lambda: self.egzersizleri_api_den_cek())
         
@@ -300,6 +329,7 @@ class SporSalonuApp(QMainWindow):
         self.tablo_egzersizler = QTableWidget()
         self.tablo_egzersizler.setColumnCount(5) 
         self.tablo_egzersizler.setHorizontalHeaderLabels(["Hareket Adı", "Ana Kas (1.0 Puan)", "Yardımcı Kaslar (0.5 Puan)", "Tür/Zorluk", "Talimat"])
+        
         header = self.tablo_egzersizler.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Interactive)
         header.setSectionResizeMode(1, QHeaderView.Interactive)
@@ -310,6 +340,7 @@ class SporSalonuApp(QMainWindow):
         self.tablo_egzersizler.setColumnWidth(1, 150) 
         self.tablo_egzersizler.setColumnWidth(2, 200)
         self.tablo_egzersizler.setColumnWidth(3, 150)
+
         self.tablo_egzersizler.setWordWrap(True) 
         self.tablo_egzersizler.verticalHeader().setVisible(False) 
         self.tablo_egzersizler.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -317,20 +348,21 @@ class SporSalonuApp(QMainWindow):
         self.tablo_egzersizler.setEditTriggers(QAbstractItemView.NoEditTriggers) 
         layout.addWidget(self.tablo_egzersizler)
 
-        # Tablodan (API'den) Ekleme Butonu
         ekleme_layout = QHBoxLayout()
         self.combo_gun = QComboBox()
         self.combo_gun.addItems(self.gunler)
+
         btn_ekle = QPushButton("Listeden Seçili Hareketi Ekle ➕")
         btn_ekle.setCursor(Qt.PointingHandCursor)
         btn_ekle.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px; font-weight: bold; border:none;")
         btn_ekle.clicked.connect(self.programa_ekle)
+
         ekleme_layout.addWidget(QLabel("Hangi Güne Eklensin? :"))
         ekleme_layout.addWidget(self.combo_gun)
         ekleme_layout.addWidget(btn_ekle)
         layout.addLayout(ekleme_layout)
 
-        # --- 2. BÖLÜM: MANUEL HAREKET YARATMA (YENİ) ---
+        # --- 2. BÖLÜM: MANUEL HAREKET YARATMA ---
         ayrac = QFrame()
         ayrac.setFrameShape(QFrame.HLine)
         ayrac.setObjectName("Ayrac")
@@ -341,7 +373,6 @@ class SporSalonuApp(QMainWindow):
         layout.addWidget(manuel_baslik)
 
         manuel_layout = QHBoxLayout()
-        
         self.input_manuel_hareket = QLineEdit()
         self.input_manuel_hareket.setPlaceholderText("Hareketin Adı (Örn: Peck Deck Fly)")
         
@@ -431,6 +462,7 @@ class SporSalonuApp(QMainWindow):
                     ham_zorluk = egzersiz.get('difficulty', 'beginner')
                     turkce_zorluk = zorluk_ceviri.get(ham_zorluk, ham_zorluk.capitalize())
                     kunye_metni = f"Tür: {turkce_tip}\nSeviye: {turkce_zorluk}"
+                    
                     talimat_ing = egzersiz.get('instructions', 'Talimat bulunmuyor.')
                     try: talimat_tr = GoogleTranslator(source='en', target='tr').translate(talimat_ing)
                     except Exception: talimat_tr = talimat_ing
@@ -486,7 +518,6 @@ class SporSalonuApp(QMainWindow):
         QMessageBox.information(self, "Başarılı", f"'{secilen_hareket}' başarıyla {secilen_gun} gününe eklendi!")
         self.takvimi_guncelle()
 
-    # YENİ FONKSİYON: Kullanıcının Kendi Yazdığı Hareketi Doğrudan Ekler
     def manuel_hareket_programa_ekle(self):
         secilen_gun = self.combo_gun.currentText()
         if secilen_gun in self.off_gunler:
@@ -499,7 +530,7 @@ class SporSalonuApp(QMainWindow):
             return
 
         ana_kas = self.combo_manuel_kas.currentText()
-        yan_kas = "-" # Manuel eklendiği için sade tutuyoruz
+        yan_kas = "-"
         aciklama = "Bu hareket kullanıcı tarafından manuel olarak eklenmiştir."
 
         conn = sqlite3.connect('spor_salonu.db')
@@ -608,11 +639,8 @@ class SporSalonuApp(QMainWindow):
     def pdf_olarak_indir(self):
         dosya_yolu, _ = QFileDialog.getSaveFileName(self, "PDF Olarak Kaydet", "Haftalik_Fitness_Programi.pdf", "PDF Dosyaları (*.pdf)")
         if dosya_yolu:
-            # HTML font boyutları büyütüldü
             html = f"<html><head><meta charset='utf-8'></head><body><h1 style='text-align:center; color:#2C3E50;'>Haftalık Fitness Programı</h1><h3 style='text-align:center; color:#7F8C8D;'>{self.lbl_bmi.text()}</h3><hr><table border='1' width='100%' cellspacing='0' cellpadding='10' style='border-collapse: collapse; text-align: center; font-family: Arial; font-size: 14px;'><tr style='background-color: #000BE3; color: white;'>"
-            
-            for gun in self.gunler: 
-                html += f"<th style='padding: 10px; font-size: 16px;'>{gun}</th>"
+            for gun in self.gunler: html += f"<th style='padding: 10px; font-size: 16px;'>{gun}</th>"
             html += "</tr>"
             
             for satir in range(self.tablo_takvim.rowCount()):
@@ -623,52 +651,47 @@ class SporSalonuApp(QMainWindow):
                     if item and item.text():
                         bos_satir = False
                         metin = item.text().replace('\n', '<br>')
-                        if "OFF DAY" in metin: 
-                            satir_html += f"<td style='background-color: #FFCCCC; font-weight: bold; color: black; font-size: 13px; padding: 8px;'>{metin}</td>"
-                        else: 
-                            satir_html += f"<td style='color: black; font-size: 13px; padding: 8px;'>{metin}</td>"
-                    else: 
-                        satir_html += "<td></td>"
+                        if "OFF DAY" in metin: satir_html += f"<td style='background-color: #FFCCCC; font-weight: bold; color: black; font-size: 13px; padding: 8px;'>{metin}</td>"
+                        else: satir_html += f"<td style='color: black; font-size: 13px; padding: 8px;'>{metin}</td>"
+                    else: satir_html += "<td></td>"
                 satir_html += "</tr>"
-                
-                if not bos_satir: 
-                    html += satir_html
+                if not bos_satir: html += satir_html
                     
             html += "</table></body></html>"
-            
             belge = QTextDocument()
             belge.setHtml(html)
-            
-            # KRİTİK DEĞİŞİKLİK: HighResolution yerine ScreenResolution kullanıldı
             yazici = QPrinter(QPrinter.ScreenResolution)
             yazici.setOutputFormat(QPrinter.PdfFormat)
             yazici.setOutputFileName(dosya_yolu)
             yazici.setOrientation(QPrinter.Landscape)
             belge.print_(yazici)
-            
             QMessageBox.information(self, "Başarılı", f"Programınız başarıyla kaydedildi!")
 
     def off_gun_belirle(self, sutun_indeksi):
         secilen_gun = self.gunler[sutun_indeksi]
+        conn = sqlite3.connect('spor_salonu.db')
+        cursor = conn.cursor()
+        
         if secilen_gun in self.off_gunler:
             cevap = QMessageBox.question(self, "Off Day İptali", f"{secilen_gun} gününü dinlenme günü olmaktan çıkarmak istiyor musun?", QMessageBox.Yes | QMessageBox.No)
             if cevap == QMessageBox.Yes:
                 self.off_gunler.remove(secilen_gun)
+                cursor.execute("DELETE FROM OffGunler WHERE kullanici_id = ? AND gun = ?", (self.aktif_kullanici_id, secilen_gun))
+                conn.commit()
                 self.takvimi_guncelle()
         else:
             cevap = QMessageBox.question(self, "Dinlenme Günü (Off Day)", f"{secilen_gun} gününü Off Day yapmak istiyor musun?", QMessageBox.Yes | QMessageBox.No)
             if cevap == QMessageBox.Yes:
                 self.off_gunler.add(secilen_gun)
-                conn = sqlite3.connect('spor_salonu.db')
-                cursor = conn.cursor()
+                cursor.execute("INSERT OR IGNORE INTO OffGunler (kullanici_id, gun) VALUES (?, ?)", (self.aktif_kullanici_id, secilen_gun))
                 cursor.execute("DELETE FROM Programlar WHERE kullanici_id = ? AND gun = ?", (self.aktif_kullanici_id, secilen_gun))
                 conn.commit()
-                conn.close()
                 self.takvimi_guncelle()
+                
+        conn.close()
 
     def takvime_gec(self):
         self.takvimi_guncelle()
-        self.ekranlar.setCurrentIndex(2)
 
     def takvimi_guncelle(self):
         self.tablo_takvim.clearContents() 
@@ -701,7 +724,6 @@ class SporSalonuApp(QMainWindow):
                         item = QTableWidgetItem()
                         self.tablo_takvim.setItem(satir, sutun, item)
                     item.setBackground(off_renk) 
-                    
                     if self.koyu_mod: item.setForeground(QColor(255, 255, 255))
                     else: item.setForeground(QColor(0, 0, 0))
 
@@ -712,7 +734,7 @@ class SporSalonuApp(QMainWindow):
                         item.setFont(font)
                         item.setTextAlignment(Qt.AlignCenter)
 
-    # --- EKRAN 4: HAFTALIK KAS ANALİZİ TABLOSU (KATSAYILI) ---
+    # --- EKRAN 4: HAFTALIK KAS ANALİZİ ---
     def analiz_ekrani_olustur(self):
         sayfa = QWidget()
         layout = QVBoxLayout(sayfa)
@@ -802,8 +824,6 @@ class SporSalonuApp(QMainWindow):
             self.tablo_analiz.setItem(satir_indeksi, 0, item_durum)
             self.tablo_analiz.setItem(satir_indeksi, 1, item_bolge)
             self.tablo_analiz.setItem(satir_indeksi, 2, item_sayi)
-            
-        self.ekranlar.setCurrentIndex(3)
 
     # --- EKRAN 5: SADELEŞTİRİLMİŞ VE KATSAYILI PASTA GRAFİĞİ ---
     def grafik_ekrani_olustur(self):
@@ -823,7 +843,6 @@ class SporSalonuApp(QMainWindow):
         
         self.chart = QChart()
         self.chart.setAnimationOptions(QChart.SeriesAnimations)
-        
         self.chart.legend().setVisible(True)
         self.chart.legend().setAlignment(Qt.AlignRight)
 
