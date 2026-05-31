@@ -768,11 +768,17 @@ class SporSalonuApp(QMainWindow):
         kas_hacim_puanlari = {bolge: 0.0 for bolge in self.hedef_kas_gruplari}
         kas_hareket_eslesmesi = {bolge: [] for bolge in self.hedef_kas_gruplari}
         
+        # YENİ: Kası ana odak olarak vurup vurmadığımızı takip eden sistem
+        ana_kas_olarak_secildi_mi = {bolge: False for bolge in self.hedef_kas_gruplari}
+        
         for hareket_adi, ana_kas, yan_kas_str in programlar:
+            # 1. Ana Kaslara Tam Puan
             if ana_kas in kas_hacim_puanlari:
                 kas_hacim_puanlari[ana_kas] += 1.0
                 kas_hareket_eslesmesi[ana_kas].append(f"{hareket_adi} (Ana: 1 Puan)")
+                ana_kas_olarak_secildi_mi[ana_kas] = True # Kası ana odak olarak vurduk!
                 
+            # 2. Yan Kaslara Yarım Puan
             if yan_kas_str and yan_kas_str != "-":
                 yan_bolgeler = [b.strip() for b in yan_kas_str.split(",")]
                 for b in yan_bolgeler:
@@ -782,12 +788,19 @@ class SporSalonuApp(QMainWindow):
                     
         self.tablo_analiz.setRowCount(0)
         
+        # Tema Renkleri (Yetersiz uyarısı için Sarı/Hardal renkleri eklendi)
         if self.koyu_mod:
-            renk_eksik = QColor(70, 30, 30); renk_asiri = QColor(80, 60, 20)
-            renk_denge = QColor(25, 55, 35); yazi_rengi = QColor(255, 255, 255)
+            renk_eksik = QColor(70, 30, 30)
+            renk_asiri = QColor(80, 40, 20) 
+            renk_yetersiz = QColor(85, 75, 25) # Yetersiz çalışma rengi (Hardal)
+            renk_denge = QColor(25, 55, 35)
+            yazi_rengi = QColor(255, 255, 255)
         else:
-            renk_eksik = QColor(255, 225, 225); renk_asiri = QColor(255, 240, 190)
-            renk_denge = QColor(220, 245, 220); yazi_rengi = QColor(0, 0, 0)
+            renk_eksik = QColor(255, 225, 225)
+            renk_asiri = QColor(255, 200, 180)
+            renk_yetersiz = QColor(255, 250, 200) # Yetersiz çalışma rengi (Açık Sarı)
+            renk_denge = QColor(220, 245, 220)
+            yazi_rengi = QColor(0, 0, 0)
 
         for satir_indeksi, bolge in enumerate(self.hedef_kas_gruplari):
             self.tablo_analiz.insertRow(satir_indeksi)
@@ -795,15 +808,25 @@ class SporSalonuApp(QMainWindow):
             puan = kas_hacim_puanlari[bolge]
             etkileyen_hareketler = kas_hareket_eslesmesi[bolge]
             
+            # YENİ DEĞERLENDİRME ALGORİTMASI
             if puan == 0.0:
-                durum_metni = "❌ Bölge Çalıştırılmıyor"
+                durum_metni = "❌ Çalışmıyor"
                 arka_plan_renk = renk_eksik
                 tooltip_metni = f"Dikkat: {bolge} bölgesini tetikleyen hiçbir hareket bulunmuyor!"
+                
+            elif not ana_kas_olarak_secildi_mi[bolge]:
+                # Puanı olsa bile hiç "Ana Kas" olarak hedef alınmadıysa!
+                durum_metni = "⚠️ İzole Edilmemiş (Yetersiz)"
+                arka_plan_renk = renk_yetersiz
+                liste_metni = "\n• ".join(etkileyen_hareketler)
+                tooltip_metni = f"UYARI: {bolge} sadece başka hareketlerde yardımcı kas olarak uyarılıyor. Gelişim için doğrudan hedefleyen bir 'Ana Hareket' eklemelisin!\n\nHareketleriniz:\n• {liste_metni}"
+                
             elif puan > 2.0:
-                durum_metni = "⚠️ Aşırı Çalışma"
+                durum_metni = "🔥 Aşırı Çalışma"
                 arka_plan_renk = renk_asiri
                 liste_metni = "\n• ".join(etkileyen_hareketler)
-                tooltip_metni = f"UYARI: {bolge} için 2 puanlık hacim sınırı aşıldı!\n\nHareketleriniz:\n• {liste_metni}"
+                tooltip_metni = f"UYARI: {bolge} için 2 puanlık hacim sınırı aşıldı! Overtraining riskine dikkat edin.\n\nHareketleriniz:\n• {liste_metni}"
+                
             else:
                 durum_metni = "✅ Dengeli"
                 arka_plan_renk = renk_denge
@@ -813,6 +836,7 @@ class SporSalonuApp(QMainWindow):
             item_durum = QTableWidgetItem(durum_metni)
             item_bolge = QTableWidgetItem(bolge)
             item_sayi = QTableWidgetItem(f"{puan} Puan")
+            
             item_durum.setTextAlignment(Qt.AlignCenter)
             item_sayi.setTextAlignment(Qt.AlignCenter)
             
@@ -824,7 +848,6 @@ class SporSalonuApp(QMainWindow):
             self.tablo_analiz.setItem(satir_indeksi, 0, item_durum)
             self.tablo_analiz.setItem(satir_indeksi, 1, item_bolge)
             self.tablo_analiz.setItem(satir_indeksi, 2, item_sayi)
-
     # --- EKRAN 5: SADELEŞTİRİLMİŞ VE KATSAYILI PASTA GRAFİĞİ ---
     def grafik_ekrani_olustur(self):
         sayfa = QWidget()
