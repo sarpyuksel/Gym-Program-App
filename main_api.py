@@ -328,7 +328,7 @@ class SporSalonuApp(QMainWindow):
 
         self.tablo_egzersizler = QTableWidget()
         self.tablo_egzersizler.setColumnCount(5) 
-        self.tablo_egzersizler.setHorizontalHeaderLabels(["Hareket Adı", "Ana Kas (1.0 Puan)", "Yardımcı Kaslar (0.5 Puan)", "Tür/Zorluk", "Talimat"])
+        self.tablo_egzersizler.setHorizontalHeaderLabels(["Hareket Adı", "Ana Kas Grubu", "Yardımcı Kas Grubu", "Tür/Zorluk", "Talimat"])
         
         header = self.tablo_egzersizler.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Interactive)
@@ -362,13 +362,13 @@ class SporSalonuApp(QMainWindow):
         ekleme_layout.addWidget(btn_ekle)
         layout.addLayout(ekleme_layout)
 
-        # --- 2. BÖLÜM: MANUEL HAREKET YARATMA ---
+        # --- 2. BÖLÜM: MANUEL HAREKET OLUŞTURMA ---
         ayrac = QFrame()
         ayrac.setFrameShape(QFrame.HLine)
         ayrac.setObjectName("Ayrac")
         layout.addWidget(ayrac)
 
-        manuel_baslik = QLabel("API'de Bulamadığın Hareketi Kendin Yarat:")
+        manuel_baslik = QLabel("API'de Bulamadığın Hareketi Kendin Oluştur:")
         manuel_baslik.setStyleSheet("color: #a1a2b3; font-weight: bold; margin-top: 5px;")
         layout.addWidget(manuel_baslik)
 
@@ -379,7 +379,7 @@ class SporSalonuApp(QMainWindow):
         self.combo_manuel_kas = QComboBox()
         self.combo_manuel_kas.addItems(self.hedef_kas_gruplari)
         
-        btn_manuel_ekle = QPushButton("🛠️ Kendi Hareketimi Yarat ve Ekle")
+        btn_manuel_ekle = QPushButton("🛠️ Kendi Hareketimi Oluştur ve Ekle")
         btn_manuel_ekle.setCursor(Qt.PointingHandCursor)
         btn_manuel_ekle.setStyleSheet("background-color: #8E44AD; color: white; padding: 8px; font-weight: bold; border:none; border-radius: 5px;")
         btn_manuel_ekle.clicked.connect(self.manuel_hareket_programa_ekle)
