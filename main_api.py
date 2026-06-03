@@ -16,9 +16,10 @@ from PyQt5.QtChart import QChart, QChartView, QPieSeries
 class SporSalonuApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Fitness Planner Pro")
+        # 1. YENİ İSİM
+        self.setWindowTitle("TRAIN-LIFE")
         self.setGeometry(100, 100, 1200, 750) 
-        self.aktif_kullanici_id = 1 
+        self.aktif_kullanici_id = None # Giriş yapana kadar None olacak
         
         self.gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
         self.off_gunler = set()
@@ -33,7 +34,6 @@ class SporSalonuApp(QMainWindow):
         ]
 
         self.veritabani_kur()
-        self.off_gunleri_yukle() # YENİ: Açılışta DB'den Off günleri çek
 
         merkez_widget = QWidget()
         self.setCentralWidget(merkez_widget)
@@ -42,22 +42,24 @@ class SporSalonuApp(QMainWindow):
         ana_dikey_layout.setContentsMargins(15, 10, 15, 15)
         ana_dikey_layout.setSpacing(10)
 
-        ust_bar_layout = QHBoxLayout()
-        ust_bar_layout.addStretch()
+        self.ust_bar_layout = QHBoxLayout()
+        self.ust_bar_layout.addStretch()
         
         self.btn_tema = QPushButton("☀️") 
         self.btn_tema.setFixedSize(45, 45)
         self.btn_tema.setCursor(Qt.PointingHandCursor)
         self.btn_tema.clicked.connect(self.tema_degistir)
-        ust_bar_layout.addWidget(self.btn_tema)
+        self.btn_tema.hide() # Giriş yapılana kadar gizli
+        self.ust_bar_layout.addWidget(self.btn_tema)
         
-        ana_dikey_layout.addLayout(ust_bar_layout)
+        ana_dikey_layout.addLayout(self.ust_bar_layout)
 
         icerik_layout = QHBoxLayout()
         ana_dikey_layout.addLayout(icerik_layout)
 
         self.menu_widget = QWidget()
         self.menu_widget.setObjectName("SolMenu")
+        self.menu_widget.hide() # Giriş yapılana kadar gizli
         menu_layout = QVBoxLayout(self.menu_widget)
         menu_layout.setContentsMargins(10, 20, 10, 20)
         menu_layout.setSpacing(12)
@@ -80,12 +82,16 @@ class SporSalonuApp(QMainWindow):
         menu_layout.addStretch()
 
         self.ekranlar = QStackedWidget()
-        self.ekran_profil = self.profil_ekrani_olustur()
-        self.ekran_havuz = self.egzersiz_havuzu_ekrani_olustur()
-        self.ekran_takvim = self.takvim_ekrani_olustur()
-        self.ekran_analiz = self.analiz_ekrani_olustur()
-        self.ekran_grafik = self.grafik_ekrani_olustur() 
+        
+        # Ekranları oluştur ve ekle (Sıralama Değişti)
+        self.ekran_giris = self.giris_ekrani_olustur() # 0
+        self.ekran_profil = self.profil_ekrani_olustur() # 1
+        self.ekran_havuz = self.egzersiz_havuzu_ekrani_olustur() # 2
+        self.ekran_takvim = self.takvim_ekrani_olustur() # 3
+        self.ekran_analiz = self.analiz_ekrani_olustur() # 4
+        self.ekran_grafik = self.grafik_ekrani_olustur() # 5
 
+        self.ekranlar.addWidget(self.ekran_giris)
         self.ekranlar.addWidget(self.ekran_profil)
         self.ekranlar.addWidget(self.ekran_havuz)
         self.ekranlar.addWidget(self.ekran_takvim)
@@ -95,16 +101,14 @@ class SporSalonuApp(QMainWindow):
         icerik_layout.addWidget(self.menu_widget, 1)
         icerik_layout.addWidget(self.ekranlar, 4)
 
-        self.btn_profil.clicked.connect(lambda: self.ekranlar.setCurrentIndex(0))
-        self.btn_havuz.clicked.connect(lambda: self.ekranlar.setCurrentIndex(1))
-        
-        self.btn_takvim.clicked.connect(lambda: self.ekranlar.setCurrentIndex(2))
+        # Menü yönlendirmeleri (İndeksler güncellendi)
+        self.btn_profil.clicked.connect(lambda: self.ekranlar.setCurrentIndex(1))
+        self.btn_havuz.clicked.connect(lambda: self.ekranlar.setCurrentIndex(2))
+        self.btn_takvim.clicked.connect(lambda: self.ekranlar.setCurrentIndex(3))
         self.btn_takvim.clicked.connect(self.takvime_gec) 
-        
-        self.btn_analiz.clicked.connect(lambda: self.ekranlar.setCurrentIndex(3))
+        self.btn_analiz.clicked.connect(lambda: self.ekranlar.setCurrentIndex(4))
         self.btn_analiz.clicked.connect(self.analiz_yap) 
-        
-        self.btn_grafik.clicked.connect(lambda: self.ekranlar.setCurrentIndex(4))
+        self.btn_grafik.clicked.connect(lambda: self.ekranlar.setCurrentIndex(5))
         self.btn_grafik.clicked.connect(self.grafik_guncelle)
 
         self.stil_sablonlarini_hazirla()
@@ -114,17 +118,19 @@ class SporSalonuApp(QMainWindow):
         else:
             self.setStyleSheet(self.light_qss)
 
-        self.profil_verilerini_yukle() 
-        self.takvimi_guncelle()
-
     def veritabani_kur(self):
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
         
-        # Diğer tabloları koruyarak sadece eksik olanları oluştururuz
         cursor.execute('''CREATE TABLE IF NOT EXISTS Kullanicilar 
                           (kullanici_id INTEGER PRIMARY KEY, kullanici_adi TEXT, sifre TEXT, boy REAL, kilo REAL)''')
         
+        # Email sütunu yoksa ekle (Hata verirse zaten vardır, pas geçeriz)
+        try:
+            cursor.execute("ALTER TABLE Kullanicilar ADD COLUMN email TEXT")
+        except sqlite3.OperationalError:
+            pass
+            
         cursor.execute('''CREATE TABLE IF NOT EXISTS Egzersizler 
                           (egzersiz_id INTEGER PRIMARY KEY AUTOINCREMENT, 
                            hareket_adi TEXT UNIQUE, 
@@ -140,16 +146,16 @@ class SporSalonuApp(QMainWindow):
                            set_sayisi INTEGER, 
                            tekrar_sayisi INTEGER)''')
                            
-        # YENİ TABLO: Kalıcı Off Day Hafızası
         cursor.execute('''CREATE TABLE IF NOT EXISTS OffGunler 
                           (kullanici_id INTEGER, gun TEXT, UNIQUE(kullanici_id, gun))''')
                            
-        cursor.execute("INSERT OR IGNORE INTO Kullanicilar (kullanici_id, kullanici_adi, sifre) VALUES (1, 'Sarp Yüksel', 'password')")
+        # Varsayılan kullanıcıyı ve şifresini ekle/güncelle
+        cursor.execute("INSERT OR IGNORE INTO Kullanicilar (kullanici_id, kullanici_adi, sifre, email) VALUES (1, 'Sarp Yüksel', 'password', 'deneme@gmail.com')")
+        cursor.execute("UPDATE Kullanicilar SET email = 'deneme@gmail.com' WHERE kullanici_id = 1 AND email IS NULL")
         conn.commit()
         conn.close()
 
     def off_gunleri_yukle(self):
-        """Veritabanından kalıcı dinlenme günlerini çeker."""
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
         cursor.execute("SELECT gun FROM OffGunler WHERE kullanici_id = ?", (self.aktif_kullanici_id,))
@@ -158,6 +164,7 @@ class SporSalonuApp(QMainWindow):
         conn.close()
 
     def stil_sablonlarini_hazirla(self):
+        # Karanlık Tema ve Beyaz Kalan Köşeler / Scrollbar Düzeltmeleri
         self.dark_qss = """
             QMainWindow, QDialog, QMessageBox { background-color: #14151f; color: #ffffff; }
             QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #ffffff; }
@@ -178,9 +185,25 @@ class SporSalonuApp(QMainWindow):
             QComboBox QAbstractItemView { background-color: #1b1c26; color: #ffffff; selection-background-color: #000BE3; }
             QLabel#Baslik { font-size: 22px; font-weight: bold; color: #ffffff; margin-bottom: 10px; }
             QLabel#AltYazi { font-size: 14px; color: #a1a2b3; }
+            
+            /* Tablo ve Köşe Kutucuğu Düzeltmesi */
             QTableWidget { background-color: #1b1c26; border: 1px solid #262837; gridline-color: #262837; border-radius: 8px; alternate-background-color: #1f202e; color: #ffffff; selection-background-color: #000BE3; selection-color: #ffffff; }
             QHeaderView::section { background-color: #242636; color: #ffffff; padding: 8px; border: 1px solid #14151f; font-weight: bold; }
             QTableWidget::item { padding: 5px; }
+            QTableCornerButton::section { background-color: #242636; border: 1px solid #14151f; }
+            
+            /* Scrollbar (Kaydırma Çubuğu) Düzeltmesi */
+            QScrollBar:vertical { border: none; background: #14151f; width: 12px; margin: 0px 0 0px 0; }
+            QScrollBar::handle:vertical { background-color: #2d3047; min-height: 30px; border-radius: 6px; }
+            QScrollBar::handle:vertical:hover { background-color: #000BE3; }
+            QScrollBar::sub-line:vertical, QScrollBar::add-line:vertical { border: none; background: none; height: 0px; }
+            
+            QScrollBar:horizontal { border: none; background: #14151f; height: 12px; margin: 0px 0 0px 0; }
+            QScrollBar::handle:horizontal { background-color: #2d3047; min-width: 30px; border-radius: 6px; }
+            QScrollBar::handle:horizontal:hover { background-color: #000BE3; }
+            QScrollBar::sub-line:horizontal, QScrollBar::add-line:horizontal { border: none; background: none; width: 0px; }
+            
+            QAbstractScrollArea::corner { background: #14151f; }
             QFrame#Ayrac { background-color: #262837; }
         """
         
@@ -204,9 +227,23 @@ class SporSalonuApp(QMainWindow):
             QComboBox QAbstractItemView { background-color: #ffffff; color: #000000; selection-background-color: #000BE3; selection-color: #ffffff; }
             QLabel#Baslik { font-size: 22px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
             QLabel#AltYazi { font-size: 14px; color: #7f8c8d; }
+            
             QTableWidget { background-color: #ffffff; border: 1px solid #dcdde1; gridline-color: #f5f6fa; border-radius: 8px; alternate-background-color: #fbfbfc; color: #000000; selection-background-color: #000BE3; selection-color: #ffffff; }
             QHeaderView::section { background-color: #f5f6fa; color: #2c3e50; padding: 8px; border: 1px solid #dcdde1; font-weight: bold; }
             QTableWidget::item { padding: 5px; }
+            QTableCornerButton::section { background-color: #f5f6fa; border: 1px solid #dcdde1; }
+            
+            QScrollBar:vertical { border: none; background: #f4f5f8; width: 12px; margin: 0px 0 0px 0; }
+            QScrollBar::handle:vertical { background-color: #dcdde1; min-height: 30px; border-radius: 6px; }
+            QScrollBar::handle:vertical:hover { background-color: #000BE3; }
+            QScrollBar::sub-line:vertical, QScrollBar::add-line:vertical { border: none; background: none; height: 0px; }
+            
+            QScrollBar:horizontal { border: none; background: #f4f5f8; height: 12px; margin: 0px 0 0px 0; }
+            QScrollBar::handle:horizontal { background-color: #dcdde1; min-width: 30px; border-radius: 6px; }
+            QScrollBar::handle:horizontal:hover { background-color: #000BE3; }
+            QScrollBar::sub-line:horizontal, QScrollBar::add-line:horizontal { border: none; background: none; width: 0px; }
+            
+            QAbstractScrollArea::corner { background: #f4f5f8; }
             QFrame#Ayrac { background-color: #dcdde1; }
         """
         self.btn_tema.setObjectName("ThemeButton")
@@ -220,10 +257,81 @@ class SporSalonuApp(QMainWindow):
             self.btn_tema.setText("🌙")
             self.setStyleSheet(self.light_qss)
         
-        self.takvimi_guncelle()
-        if self.ekranlar.currentIndex() == 4:
-            self.grafik_guncelle()
+        if self.aktif_kullanici_id:
+            self.takvimi_guncelle()
+            if self.ekranlar.currentIndex() == 5:
+                self.grafik_guncelle()
 
+    # --- EKRAN 0: LOGİN EKRANI (YENİ) ---
+    def giris_ekrani_olustur(self):
+        sayfa = QWidget()
+        layout = QVBoxLayout(sayfa)
+        layout.setAlignment(Qt.AlignCenter)
+
+        logo_label = QLabel("TRAIN-LIFE")
+        logo_label.setStyleSheet("font-size: 42px; font-weight: 900; color: #000BE3; letter-spacing: 2px;")
+        logo_label.setAlignment(Qt.AlignCenter)
+
+        altyazi = QLabel("Fitness Planlayıcınıza Hoş Geldiniz")
+        altyazi.setStyleSheet("font-size: 16px; color: #a1a2b3; margin-bottom: 30px;")
+        altyazi.setAlignment(Qt.AlignCenter)
+
+        self.input_email = QLineEdit()
+        self.input_email.setPlaceholderText("E-posta Adresi")
+        self.input_email.setStyleSheet("font-size: 14px; padding: 12px; margin-bottom: 10px; max-width: 350px;")
+        self.input_email.setText("sarp@trainlife.com") # Kolay giriş için hazır
+
+        self.input_sifre = QLineEdit()
+        self.input_sifre.setPlaceholderText("Şifre")
+        self.input_sifre.setEchoMode(QLineEdit.Password)
+        self.input_sifre.setStyleSheet("font-size: 14px; padding: 12px; margin-bottom: 20px; max-width: 350px;")
+        self.input_sifre.returnPressed.connect(self.giris_yap)
+
+        btn_giris = QPushButton("Sisteme Giriş Yap")
+        btn_giris.setCursor(Qt.PointingHandCursor)
+        btn_giris.setStyleSheet("background-color: #000BE3; color: white; padding: 12px; font-size: 16px; font-weight: bold; border:none; border-radius: 6px; max-width: 350px;")
+        btn_giris.clicked.connect(self.giris_yap)
+
+        layout.addStretch()
+        layout.addWidget(logo_label, alignment=Qt.AlignCenter)
+        layout.addWidget(altyazi, alignment=Qt.AlignCenter)
+        layout.addWidget(self.input_email, alignment=Qt.AlignCenter)
+        layout.addWidget(self.input_sifre, alignment=Qt.AlignCenter)
+        layout.addWidget(btn_giris, alignment=Qt.AlignCenter)
+        layout.addStretch()
+
+        return sayfa
+
+    def giris_yap(self):
+        email = self.input_email.text().strip()
+        sifre = self.input_sifre.text().strip()
+        
+        if not email or not sifre:
+            QMessageBox.warning(self, "Uyarı", "Lütfen E-posta ve şifrenizi girin!")
+            return
+
+        conn = sqlite3.connect('spor_salonu.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT kullanici_id FROM Kullanicilar WHERE email = ? AND sifre = ?", (email, sifre))
+        sonuc = cursor.fetchone()
+        conn.close()
+
+        if sonuc:
+            self.aktif_kullanici_id = sonuc[0]
+            self.off_gunleri_yukle()
+            self.profil_verilerini_yukle()
+            
+            # Menüyü ve Tema butonunu göster
+            self.menu_widget.show()
+            self.btn_tema.show()
+            
+            # Profil sekmesine atla
+            self.ekranlar.setCurrentIndex(1)
+            self.takvimi_guncelle()
+        else:
+            QMessageBox.critical(self, "Giriş Başarısız", "E-posta adresi veya şifre hatalı!")
+
+    # --- EKRAN 1: PROFİL ---
     def profil_ekrani_olustur(self):
         sayfa = QWidget()
         layout = QVBoxLayout(sayfa)
@@ -232,7 +340,7 @@ class SporSalonuApp(QMainWindow):
         baslik.setAlignment(Qt.AlignCenter)
         
         self.input_ad_soyad = QLineEdit()
-        self.input_ad_soyad.setText("Sarp Yüksel")
+        self.input_ad_soyad.setPlaceholderText("Adınız Soyadınız")
         self.input_ad_soyad.setStyleSheet("font-size: 14px; margin-left: 200px; margin-right: 200px; margin-bottom: 10px;")
         
         self.input_boy = QLineEdit()
@@ -273,7 +381,7 @@ class SporSalonuApp(QMainWindow):
             self.bmi_guncelle(boy, kilo)
             QMessageBox.information(self, "Başarılı", "Bilgileriniz kaydedildi!")
             
-            self.ekranlar.setCurrentIndex(1) 
+            self.ekranlar.setCurrentIndex(2) 
             self.btn_havuz.setChecked(True)
         except ValueError:
             QMessageBox.warning(self, "Hata", "Lütfen boy ve kilo için sadece sayı giriniz!")
@@ -281,6 +389,7 @@ class SporSalonuApp(QMainWindow):
             QMessageBox.warning(self, "Hata", str(e))
 
     def profil_verilerini_yukle(self):
+        if not self.aktif_kullanici_id: return
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
         cursor.execute("SELECT kullanici_adi, boy, kilo FROM Kullanicilar WHERE kullanici_id = ?", (self.aktif_kullanici_id,))
@@ -299,6 +408,9 @@ class SporSalonuApp(QMainWindow):
         bmi = kilo / (boy_m * boy_m)
         durum = "Zayıf" if bmi < 18.5 else "Normal" if bmi < 24.9 else "Fazla Kilolu" if bmi < 29.9 else "Obez"
         metin = f"👤 {self.input_ad_soyad.text()}  |  📏 {boy_cm} cm  |  ⚖️ {kilo} kg  |  🔥 BMI: {bmi:.1f} ({durum})"
+        
+        if not hasattr(self, 'lbl_bmi'):
+            self.lbl_bmi = QLabel(metin)
         self.lbl_bmi.setText(metin)
 
     # --- EKRAN 2: EGZERSİZ KÜTÜPHANESİ ---
@@ -328,7 +440,7 @@ class SporSalonuApp(QMainWindow):
 
         self.tablo_egzersizler = QTableWidget()
         self.tablo_egzersizler.setColumnCount(5) 
-        self.tablo_egzersizler.setHorizontalHeaderLabels(["Hareket Adı", "Ana Kas Grubu", "Yardımcı Kas Grubu", "Tür/Zorluk", "Talimat"])
+        self.tablo_egzersizler.setHorizontalHeaderLabels(["Hareket Adı", "Ana Kas (1.0 Puan)", "Yardımcı Kaslar (0.5 Puan)", "Tür/Zorluk", "Talimat"])
         
         header = self.tablo_egzersizler.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Interactive)
@@ -362,13 +474,13 @@ class SporSalonuApp(QMainWindow):
         ekleme_layout.addWidget(btn_ekle)
         layout.addLayout(ekleme_layout)
 
-        # --- 2. BÖLÜM: MANUEL HAREKET OLUŞTURMA ---
+        # --- 2. BÖLÜM: MANUEL HAREKET YARATMA ---
         ayrac = QFrame()
         ayrac.setFrameShape(QFrame.HLine)
         ayrac.setObjectName("Ayrac")
         layout.addWidget(ayrac)
 
-        manuel_baslik = QLabel("API'de Bulamadığın Hareketi Kendin Oluştur:")
+        manuel_baslik = QLabel("API'de Bulamadığın Hareketi Kendin Yarat:")
         manuel_baslik.setStyleSheet("color: #a1a2b3; font-weight: bold; margin-top: 5px;")
         layout.addWidget(manuel_baslik)
 
@@ -379,7 +491,7 @@ class SporSalonuApp(QMainWindow):
         self.combo_manuel_kas = QComboBox()
         self.combo_manuel_kas.addItems(self.hedef_kas_gruplari)
         
-        btn_manuel_ekle = QPushButton("🛠️ Kendi Hareketimi Oluştur ve Ekle")
+        btn_manuel_ekle = QPushButton("🛠️ Kendi Hareketimi Yarat ve Ekle")
         btn_manuel_ekle.setCursor(Qt.PointingHandCursor)
         btn_manuel_ekle.setStyleSheet("background-color: #8E44AD; color: white; padding: 8px; font-weight: bold; border:none; border-radius: 5px;")
         btn_manuel_ekle.clicked.connect(self.manuel_hareket_programa_ekle)
@@ -621,7 +733,7 @@ class SporSalonuApp(QMainWindow):
         if not item or not item.text().strip() or "OFF DAY" in item.text():
             self.combo_gun.setCurrentText(secilen_gun)
             self.btn_havuz.setChecked(True)
-            self.ekranlar.setCurrentIndex(1)
+            self.ekranlar.setCurrentIndex(2)
             return
 
         hareket_adi = item.text().split('\n')[0] 
@@ -694,6 +806,8 @@ class SporSalonuApp(QMainWindow):
         self.takvimi_guncelle()
 
     def takvimi_guncelle(self):
+        if not self.aktif_kullanici_id: return
+        
         self.tablo_takvim.clearContents() 
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
@@ -759,6 +873,7 @@ class SporSalonuApp(QMainWindow):
         return sayfa
 
     def analiz_yap(self):
+        if not self.aktif_kullanici_id: return
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
         cursor.execute("SELECT e.hareket_adi, e.ana_kas, e.yan_kas FROM Programlar p JOIN Egzersizler e ON p.egzersiz_id = e.egzersiz_id WHERE p.kullanici_id = ?", (self.aktif_kullanici_id,))
@@ -767,18 +882,14 @@ class SporSalonuApp(QMainWindow):
         
         kas_hacim_puanlari = {bolge: 0.0 for bolge in self.hedef_kas_gruplari}
         kas_hareket_eslesmesi = {bolge: [] for bolge in self.hedef_kas_gruplari}
-        
-        # YENİ: Kası ana odak olarak vurup vurmadığımızı takip eden sistem
         ana_kas_olarak_secildi_mi = {bolge: False for bolge in self.hedef_kas_gruplari}
         
         for hareket_adi, ana_kas, yan_kas_str in programlar:
-            # 1. Ana Kaslara Tam Puan
             if ana_kas in kas_hacim_puanlari:
                 kas_hacim_puanlari[ana_kas] += 1.0
                 kas_hareket_eslesmesi[ana_kas].append(f"{hareket_adi} (Ana: 1 Puan)")
-                ana_kas_olarak_secildi_mi[ana_kas] = True # Kası ana odak olarak vurduk!
+                ana_kas_olarak_secildi_mi[ana_kas] = True 
                 
-            # 2. Yan Kaslara Yarım Puan
             if yan_kas_str and yan_kas_str != "-":
                 yan_bolgeler = [b.strip() for b in yan_kas_str.split(",")]
                 for b in yan_bolgeler:
@@ -788,17 +899,16 @@ class SporSalonuApp(QMainWindow):
                     
         self.tablo_analiz.setRowCount(0)
         
-        # Tema Renkleri (Yetersiz uyarısı için Sarı/Hardal renkleri eklendi)
         if self.koyu_mod:
             renk_eksik = QColor(70, 30, 30)
             renk_asiri = QColor(80, 40, 20) 
-            renk_yetersiz = QColor(85, 75, 25) # Yetersiz çalışma rengi (Hardal)
+            renk_yetersiz = QColor(85, 75, 25) 
             renk_denge = QColor(25, 55, 35)
             yazi_rengi = QColor(255, 255, 255)
         else:
             renk_eksik = QColor(255, 225, 225)
             renk_asiri = QColor(255, 200, 180)
-            renk_yetersiz = QColor(255, 250, 200) # Yetersiz çalışma rengi (Açık Sarı)
+            renk_yetersiz = QColor(255, 250, 200) 
             renk_denge = QColor(220, 245, 220)
             yazi_rengi = QColor(0, 0, 0)
 
@@ -808,14 +918,12 @@ class SporSalonuApp(QMainWindow):
             puan = kas_hacim_puanlari[bolge]
             etkileyen_hareketler = kas_hareket_eslesmesi[bolge]
             
-            # YENİ DEĞERLENDİRME ALGORİTMASI
             if puan == 0.0:
                 durum_metni = "❌ Çalışmıyor"
                 arka_plan_renk = renk_eksik
                 tooltip_metni = f"Dikkat: {bolge} bölgesini tetikleyen hiçbir hareket bulunmuyor!"
                 
             elif not ana_kas_olarak_secildi_mi[bolge]:
-                # Puanı olsa bile hiç "Ana Kas" olarak hedef alınmadıysa!
                 durum_metni = "⚠️ İzole Edilmemiş (Yetersiz)"
                 arka_plan_renk = renk_yetersiz
                 liste_metni = "\n• ".join(etkileyen_hareketler)
@@ -848,6 +956,7 @@ class SporSalonuApp(QMainWindow):
             self.tablo_analiz.setItem(satir_indeksi, 0, item_durum)
             self.tablo_analiz.setItem(satir_indeksi, 1, item_bolge)
             self.tablo_analiz.setItem(satir_indeksi, 2, item_sayi)
+
     # --- EKRAN 5: SADELEŞTİRİLMİŞ VE KATSAYILI PASTA GRAFİĞİ ---
     def grafik_ekrani_olustur(self):
         sayfa = QWidget()
@@ -875,6 +984,7 @@ class SporSalonuApp(QMainWindow):
         return sayfa
 
     def grafik_guncelle(self):
+        if not self.aktif_kullanici_id: return
         conn = sqlite3.connect('spor_salonu.db')
         cursor = conn.cursor()
         cursor.execute("SELECT e.hareket_adi, e.ana_kas, e.yan_kas FROM Programlar p JOIN Egzersizler e ON p.egzersiz_id = e.egzersiz_id WHERE p.kullanici_id = ?", (self.aktif_kullanici_id,))
